@@ -1,0 +1,182 @@
+------------------------------------------- Marklogic Assignment ----------------------------------------------------------
+
+
+Test Document:
+ <Shipment>
+    <Shipment_id>25</Shipment_id>
+    <Shipment_description>B</Shipment_description>
+    <Shipment_delivery_address></Shipment_delivery_address>
+    <Shipment_weight>80</Shipment_weight>
+    <Shipment_status>Delivered</Shipment_status>
+    <Shipment_create_dateTime></Shipment_create_dateTime>
+    <Shipment_modified_dateTime></Shipment_modified_dateTime>
+    <Shipment_Order_Details>
+    <Order>
+        <Order_Id>22</Order_Id>
+        <Order_description>Refrigerator</Order_description>
+        <Order_deliveryAddress>Bangalore</Order_deliveryAddress>
+        <Order_deliveryDateTime>2022-04-20</Order_deliveryDateTime>
+        <Order_status>Order Delivered</Order_status>
+        <Order_count>1</Order_count>
+        <Order_amount>15000</Order_amount>
+        <Order_details> 
+            <Item_id>Refrigerator</Item_id>
+            <Item_description>Home Appliance</Item_description>
+            <Item_type>Household</Item_type>
+            <Item_price>15000</Item_price>
+            <Item_status>Availaible</Item_status>
+            <Item_weight>80</Item_weight>
+        </Order_details>
+    </Order>
+    </Shipment_Order_Details>
+</Shipment>
+
+------------------------------------------------------------------------------
+
+Loading the Documents
+		(: load documents  :)
+xdmp:eval('for $d in xdmp:filesystem-directory("C:\mls-projects\Xquery-practise")//dir:entry
+return xdmp:document-load($d//dir:pathname, 
+  <options xmlns="xdmp:document-load">
+    <uri>{fn:string($d//dir:filename)}</uri>
+    <collections>
+          <collection>ShipmentCollection</collection>
+     </collections> 
+  </options>)',  ()
+		  )
+		 
+		 
+-------------------------------------------------------------------------------
+
+
+
+-----> Queries
+
+xquery version "1.0-ml";
+
+(:
+ Query to fetch the Order details whose Order amount is greater than 12000 
+for $shipment in collection()/Shipment
+let $order_amount := $shipment//Order_amount/text()
+where  $order_amount > 12000
+return $shipment//Order_details
+:)
+
+
+
+for $Orders in collection()/Shipment
+let $OrdersDetails := $Orders//Order
+where $OrdersDetails//Item_weight le 1
+return ($OrdersDetails, $OrdersDetails//Item_weight)
+
+
+(:
+	Write FLWOR query to get all the order id and item id and item description where item weight is less than 1 Kg.
+:)
+
+(::)
+for $shipment in collection()/Shipment
+let $itemId := $shipment//Shipment_Order_Details/Order/Order_details/Item_id
+let $itemWeight:= $shipment//Shipment_Order_Details/Order/Order_details/Item_weight/text()
+let $orderId := $shipment//Shipment_Order_Details/Order/Order_Id
+let $ItemDescription := $shipment//Shipment_Order_Details/Order/Order_details/Item_description
+where $itemWeight le 1
+return (<itemId>{$itemId}</itemId>,
+<OrderId>{$orderId}</OrderId>,
+<ItemDescription>{$ItemDescription}</ItemDescription>)
+
+
+(:
+	Write FLWOR query to get all the item details sorted by item price.
+:)
+
+
+for $shipment in /Shipment
+let $Order := $shipment//Shipment_Order_Details/Order
+let $ItemPrice := $shipment//Shipment_Order_Details/Item_price/text()
+order by $ItemPrice ascending
+return $Order
+
+
+(:
+	Write FLWOR query to get all the order details which are delivered within last 2 days.
+:)
+
+
+(:
+for $shipment in /Shipment
+let $Orders := $shipment//Order_details
+let $deliverDate := $shipment/Shipment_Order_Details/Order_deliveryDateTime/text()
+let $diff := (fn:days-from-duration((fn:current-date() - xs:date($deliverDate))))
+where xs:integer($diff le 2) 
+return $Orders
+:)
+
+(:
+	Write FLWOR query to get shipment id, order Id and status for all the documents.
+:)
+
+
+for $shipment in /Shipment
+let $shipmentId := $shipment/Shipment_id
+let $orderId := $shipment//Shipment_Order_Details/Order/Order_Id
+let $status := $shipment//Order_status
+return (
+<ShipmentId>{$shipmentId}</ShipmentId>,
+<OrderId>{$orderId}</OrderId>,<Status>{$status}</Status>)
+:)
+
+(:
+	Write FLWOR query to get shipment Id and count of all the order available in that shipment.
+:)
+
+for $shipment in /Shipment
+let $shipmentId := $shipment/Shipment_id
+let $count := fn:count($shipment/Shipment_Order_Details/Order)
+return (
+<ShipmentId>{$shipmentId}</ShipmentId>,
+<Count>{$count}</Count>)
+
+
+(:
+	Write FLWOR query to get shipment Id and count of all the order available in that shipment which are delivered.
+:)
+
+(:
+for $shipment in /Shipment
+let $shipmentId := $shipment/Shipment_id
+let $delivered_count := fn:count($shipment/Shipment_Order_Details/Order/Order_status[.= "Order Delivered"])
+return ($shipmentId, $delivered_count)
+:)
+
+(:
+	Write FLWOR query to get shipment id, and count of order
+which have same Order Delivery Address.
+:)
+  
+  for $d in fn:distinct-values(collection()/Shipment/Shipment_Order_Details/Order/Order_deliveryAddress)
+ let $deladdrss:= count(collection()/Shipment/Shipment_Order_Details/Order[./Order_deliveryAddress eq $d])
+ where count(collection()/Shipment/Shipment_Order_Details/Order[./Order_deliveryAddress eq $d]) >1
+ return ("Shipment Id is :", <ShipmentId>{/Shipment/Shipment_id}</ShipmentId>,
+ "Count of the Order having same Address is :",$deladdrss)
+ 
+ ---------------------------------------------------------------------------
+ 
+Function to convert input date time into UTC date time
+
+declare function local:demo($input)
+{
+  
+  let $day := fn:day-from-dateTime(xs:dateTime($input))
+  let $month := fn:month-from-dateTime(xs:dateTime($input))
+  let $current := xs:dateTime($input)
+ 
+
+  return fn:format-dateTime($current,
+  "[Y0001]-[M01]-[D01] [H01]:[m01]:[s01]Z")
+  
+};
+
+<Utc-dateTime>
+{local:demo("2022-04-20T13:20:24.454-07:00")}
+</Utc-dateTime>
